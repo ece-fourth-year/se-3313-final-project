@@ -15,8 +15,10 @@ struct {
     Client player2;
 } GameSession;
 
-main func {
 
+
+main func {
+    TODO: Michael
     vector<threadSession> threadSessions;
     timerThread;
     timerStarted = false;
@@ -42,7 +44,7 @@ main func {
 }
 
 timerThread func (gameSession) {
-
+    TODO: Michael
     start time_elapsed_tracker
 
     while loop for 60 seconds {
@@ -56,6 +58,7 @@ timerThread func (gameSession) {
 }
 
 threadSession func (gameSession) {
+    TODO: Daniel
 
     client1 = gameSession.player1
     client2 = gameSession.player2
@@ -86,6 +89,7 @@ threadSession func (gameSession) {
 }
 
 clientHandlerThread func (gameSem, client, answer, clientGuessedCorrectly, portFirst) {
+    TODO: Piotr
 
     on data from client
 

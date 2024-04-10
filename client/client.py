@@ -1,6 +1,6 @@
-
-
 '''
+TODO: Alexander 
+
 main func 
 
     sleep_time = rng time to sleep between 0 1
