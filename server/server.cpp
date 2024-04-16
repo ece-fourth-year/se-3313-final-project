@@ -34,6 +34,7 @@ struct GameSession{
 };
 
 void threadSession(GameSession gameSem);
+void clientHandlerThread(Semaphore *gameSem, Client *client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
 
 /*
 main func {
@@ -108,17 +109,17 @@ threadSession func (gameSession) {
 
 }
 */
-void threadSession(GameSession gameSem) {
+void threadSession(GameSession gameSession) {
 
-    Client client1 = gameSem.player1;
-    Client client2 = gameSem.player2;
+    Client *client1 = &gameSession.player1;
+    Client *client2 = &gameSession.player2;
 
     // start game message  
     string initGameMsg = "Init";
     // start game 1
-    client1.socket.Write(ByteArray(initGameMsg));
+    client1->socket.Write(ByteArray(initGameMsg));
     // start game 2
-    client2.socket.Write(ByteArray(initGameMsg));
+    client2->socket.Write(ByteArray(initGameMsg));
 
     int answer = rand() % 10 + 1;
     bool player1Correct = false;
@@ -126,31 +127,31 @@ void threadSession(GameSession gameSem) {
     int portFirst = -1;
     Semaphore gameSem = Semaphore("gameSem", 0, true);
 
-    // clientHandlerThread(gameSem, &client1, &answer, &player1Correct, &portFirst)
-    // clientHandlerThread(gameSem, &client2, &answer, &player2Correct, &portFirst)
+    clientHandlerThread(&gameSem, client1, &answer, &player1Correct, &portFirst);
+    clientHandlerThread(&gameSem, client2, &answer, &player2Correct, &portFirst);
 
     if (player1Correct && player2Correct) {
-        if (portFirst == client1.port) {
+        if (portFirst == client1->port) {
             // player 1 wins
-            client1.socket.Write(ByteArray("You win!"));
-            client2.socket.Write(ByteArray("You lose!"));
+            client1->socket.Write(ByteArray("You win!"));
+            client2->socket.Write(ByteArray("You lose!"));
         } else {
             // player 2 wins
-            client1.socket.Write(ByteArray("You lose!"));
-            client2.socket.Write(ByteArray("You win!"));
+            client1->socket.Write(ByteArray("You lose!"));
+            client2->socket.Write(ByteArray("You win!"));
         }
     } else if (player1Correct && !player2Correct) {
         // player 1 wins
-        client1.socket.Write(ByteArray("You win!"));
-        client2.socket.Write(ByteArray("You lose!"));
+        client1->socket.Write(ByteArray("You win!"));
+        client2->socket.Write(ByteArray("You lose!"));
     } else if (player2Correct && !player1Correct) {
         // player 2 wins
-        client1.socket.Write(ByteArray("You lose!"));
-        client2.socket.Write(ByteArray("You win!"));
+        client1->socket.Write(ByteArray("You lose!"));
+        client2->socket.Write(ByteArray("You win!"));
     } else {
         // both lose
-        client1.socket.Write(ByteArray("You lose!"));
-        client2.socket.Write(ByteArray("You lose!"));
+        client1->socket.Write(ByteArray("You lose!"));
+        client2->socket.Write(ByteArray("You lose!"));
     }
 
 }
@@ -174,3 +175,25 @@ clientHandlerThread func (gameSem, client, answer, clientGuessedCorrectly, portF
     gameSem.Post()
 }
 */
+
+void clientHandlerThread(Semaphore *gameSem, Client *client, int *answer, bool *clientGuessedCorrectly, int *portFirst) {
+
+    // on data from client
+    // TODO: implement getting data from client
+
+    gameSem->Wait();
+
+    if (*answer == 1) {
+        *clientGuessedCorrectly = true;
+
+        if (*portFirst == -1) {
+            *portFirst = client->port;
+        }
+    } else {
+        *clientGuessedCorrectly = false;
+    }
+
+    gameSem->Signal();
+}
+
+// add main driver function?
