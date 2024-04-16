@@ -77,38 +77,6 @@ timerThread func (gameSession) {
     
 } */
 
-/*
-threadSession func (gameSession) {
-    TODO: Daniel
-
-    client1 = gameSession.player1
-    client2 = gameSession.player2
-
-    start player 1 game
-    start player 2 game
-
-    ... game logic -> first to guess wins
-
-    answer = rng number between 1 to 10
-
-    bool player1Correct = False;
-    bool player2Correct = False;
-    portFirst = -1;
-    gameSem = new Semaphore
-
-    clientHandlerThread(gameSem, client1, answer, player1Correct, portFirst)
-    clientHandlerThread(gameSem, client2, answer, player2Correct, portFirst)
-
-    check if player 1 or player 2 got it correct
-
-        if both got correct check which one grabbed gameSem first
-
-        if both lose too bad so sad
-
-    provide results to player1 and player2 and end their suffering
-
-}
-*/
 void threadSession(GameSession gameSession) {
 
     Client *client1 = &gameSession.player1;
