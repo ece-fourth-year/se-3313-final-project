@@ -4,6 +4,7 @@
 #include "../include/socketserver.h"
 #include "../include/Semaphore.h"
 #include <string.h>
+#include <chrono>
 
 /*
 struct {
@@ -24,15 +25,10 @@ struct {
 using namespace std;
 using namespace Sync;
 
-struct Client{
-    string ipAddress = "127.0.0.1"; //"<>.<>.<>"
-    int port;
-    Socket socket;
-};
-
 struct GameSession{
-    Client player1;
-    Client player2;
+    Socket player1;
+    Socket player2;
+
 };
 
 void threadSession(GameSession gameSem);
@@ -80,7 +76,6 @@ timerThread func (gameSession) {
     
 } */
 
-
 int main(void) {
 
     vector<thread> threadSessions;
@@ -91,18 +86,17 @@ int main(void) {
 
     while (1) {
 
-        GameSession *newGameSession;
+        auto newGameSession = make_shared<GameSession>();
         Socket clientSocket(server.Accept());
-        Client *client;
-        client->socket = clientSocket;
-\
+        thread timerTh;
+
         if (!timerStarted) {
-            newGameSession->player1 = *client;
-            thread timerTh(timerThread, newGameSession);
+            newGameSession->player1 = clientSocket;
+            timerTh = thread(timerThread, newGameSession); // Fix: Pass the address of the timerThread function
             timerStarted = true;
         } else {
-            newGameSession->player2 = *client;
-            timerThread.join();
+            newGameSession->player2 = clientSocket;
+            timerTh.join();
             timerStarted = false;
             threadSessions.push_back(thread(threadSession, newGameSession));
         }
@@ -114,13 +108,16 @@ int main(void) {
 
 void timerThread(GameSession *gameSession) {
 
-    int timeElapsed = 0;
+    auto start = chrono::high_resolution_clock::now();
 
+    int timeElapsed = 0;
+    // fix 
     while (timeElapsed < 60) {
-        if (gameSession->player2.port != 0) {
+        if (gameSession->player2 != nullptr) {
             return;
         }
-        timeElapsed++;
+        auto end = chrono::high_resolution_clock::now();
+        timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
     }
 
     gameSession->player1.socket.Close();
