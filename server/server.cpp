@@ -25,15 +25,18 @@ struct {
 using namespace std;
 using namespace Sync;
 
-struct GameSession{
-    Socket player1;
-    Socket player2;
-
+struct Client {
+    shared_ptr<Socket> socket;
+    int port;
+};
+struct GameSession {
+    shared_ptr<Client> player1;
+    shared_ptr<Client> player2;
 };
 
-void threadSession(GameSession gameSem);
-void clientHandlerThread(Semaphore *gameSem, Client *client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
-void timerThread(GameSession *gameSession);
+void threadSession(shared_ptr<GameSession> gameSession);
+void clientHandlerThread(shared_ptr<GameSession> gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
+void timerThread(shared_ptr<GameSession> gameSession);
 
 /*
 main func {
@@ -80,7 +83,6 @@ int main(void) {
 
     vector<thread> threadSessions;
     bool timerStarted = false;
-    thread timerThread;
 
     SocketServer server = SocketServer(2000);
 
@@ -91,11 +93,11 @@ int main(void) {
         thread timerTh;
 
         if (!timerStarted) {
-            newGameSession->player1 = clientSocket;
+            newGameSession->player1->socket = make_shared<Socket>(clientSocket);
             timerTh = thread(timerThread, newGameSession); // Fix: Pass the address of the timerThread function
             timerStarted = true;
         } else {
-            newGameSession->player2 = clientSocket;
+            newGameSession->player2->socket = make_shared<Socket>(clientSocket);
             timerTh.join();
             timerStarted = false;
             threadSessions.push_back(thread(threadSession, newGameSession));
@@ -106,12 +108,12 @@ int main(void) {
 
 }
 
-void timerThread(GameSession *gameSession) {
+void timerThread(shared_ptr<GameSession> gameSession) {
 
     auto start = chrono::high_resolution_clock::now();
 
     int timeElapsed = 0;
-    // fix 
+
     while (timeElapsed < 60) {
         if (gameSession->player2 != nullptr) {
             return;
@@ -120,20 +122,20 @@ void timerThread(GameSession *gameSession) {
         timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
     }
 
-    gameSession->player1.socket.Close();
+    gameSession->player1->Close();
 }
 
-void threadSession(GameSession *gameSession) {
+void threadSession(shared_ptr<GameSession> gameSession) {
 
-    Client& client1 = gameSession->player1;
-    Client& client2 = gameSession->player2;
+    shared_ptr<Socket> player1 = gameSession->player1;
+    shared_ptr<Socket> player2 = gameSession->player2;
 
     // start game message  
     string initGameMsg = "Init";
     // start game 1
-    client1.socket.Write(ByteArray(initGameMsg));
+    player1->Write(ByteArray(initGameMsg));
     // start game 2
-    client2.socket.Write(ByteArray(initGameMsg));
+    player2->Write(ByteArray(initGameMsg));
 
     int answer = rand() % 10 + 1;
     bool player1Correct = false;
@@ -141,38 +143,38 @@ void threadSession(GameSession *gameSession) {
     int portFirst = -1;
     Semaphore gameSem = Semaphore("gameSem", 0, true);
 
-    thread client1Thread(clientHandlerThread, &gameSem, client1, &answer, &player1Correct, &portFirst);
-    thread client2Thread(clientHandlerThread, &gameSem, client2, &answer, &player2Correct, &portFirst);
+    thread player1Thread(clientHandlerThread, &gameSem, player1, &answer, &player1Correct, &portFirst);
+    thread client2Thread(clientHandlerThread, &gameSem, player2, &answer, &player2Correct, &portFirst);
 
-    client1Thread.join();
+    player1Thread.join();
     client2Thread.join();
 
     if (player1Correct && player2Correct) {
-        if (portFirst == client1.port) {
+        if (portFirst == player1->GetFD()) {
             // player 1 wins
-            client1.socket.Write(ByteArray("You win!"));
-            client2.socket.Write(ByteArray("You lose!"));
+            player1->Write(ByteArray("You win!"));
+            player2->Write(ByteArray("You lose!"));
         } else {
             // player 2 wins
-            client1.socket.Write(ByteArray("You lose!"));
-            client2.socket.Write(ByteArray("You win!"));
+            player1->Write(ByteArray("You lose!"));
+            player2->Write(ByteArray("You win!"));
         }
     } else if (player1Correct && !player2Correct) {
         // player 1 wins
-        client1.socket.Write(ByteArray("You win!"));
-        client2.socket.Write(ByteArray("You lose!"));
+        player1->Write(ByteArray("You win!"));
+        player2->Write(ByteArray("You lose!"));
     } else if (player2Correct && !player1Correct) {
         // player 2 wins
-        client1.socket.Write(ByteArray("You lose!"));
-        client2.socket.Write(ByteArray("You win!"));
+        player1->Write(ByteArray("You lose!"));
+        player2->Write(ByteArray("You win!"));
     } else {
         // both lose
-        client1.socket.Write(ByteArray("You lose!"));
-        client2.socket.Write(ByteArray("You lose!"));
+        player1->Write(ByteArray("You lose!"));
+        player2->Write(ByteArray("You lose!"));
     }
 
-    client1.socket.Close();
-    client2.socket.Close();
+    player1->Close();
+    player2->Close();
 
 }
 
@@ -196,18 +198,16 @@ clientHandlerThread func (gameSem, client, answer, clientGuessedCorrectly, portF
 }
 */
 
-void clientHandlerThread(Semaphore *gameSem, Client *client, int *answer, bool *clientGuessedCorrectly, int *portFirst) {
+void clientHandlerThread(Semaphore *gameSem, shared_ptr<Socket> clientSocket, int *answer, bool *clientGuessedCorrectly, int *portFirst) {
 
     // on data from client
 
     ByteArray buffer;
 
-    Socket clientSocket = client->socket;
-
     int clientGuess;
 
     // Wait for a message from the client
-    while (clientSocket.Read(buffer) == 0)
+    while (clientSocket->Read(buffer) == 0)
     {
         sleep(1);
     }
