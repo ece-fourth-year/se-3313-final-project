@@ -35,7 +35,7 @@ struct GameSession {
 };
 
 void threadSession(shared_ptr<GameSession> gameSession);
-void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> clientSocket, int *answer, bool *clientGuessedCorrectly, int *portFirst);
+void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
 void timerThread(shared_ptr<GameSession> gameSession);
 
 /*
@@ -127,15 +127,15 @@ void timerThread(shared_ptr<GameSession> gameSession) {
 
 void threadSession(shared_ptr<GameSession> gameSession) {
 
-    shared_ptr<Socket> player1 = gameSession->player1->socket;
-    shared_ptr<Socket> player2 = gameSession->player2->socket;
+    shared_ptr<Client> player1 = gameSession->player1;
+    shared_ptr<Client> player2 = gameSession->player2;
 
     // start game message  
     string initGameMsg = "Init";
     // start game 1
-    player1->Write(ByteArray(initGameMsg));
+    player1->socket->Write(ByteArray(initGameMsg));
     // start game 2
-    player2->Write(ByteArray(initGameMsg));
+    player2->socket->Write(ByteArray(initGameMsg));
 
     int answer = rand() % 10 + 1;
     bool player1Correct = false;
@@ -150,31 +150,31 @@ void threadSession(shared_ptr<GameSession> gameSession) {
     client2Thread.join();
 
     if (player1Correct && player2Correct) {
-        if (portFirst == player1->GetFD()) {
+        if (portFirst == player1->port) {
             // player 1 wins
-            player1->Write(ByteArray("You win!"));
-            player2->Write(ByteArray("You lose!"));
+            player1->socket->Write(ByteArray("You win!"));
+            player2->socket->Write(ByteArray("You lose!"));
         } else {
             // player 2 wins
-            player1->Write(ByteArray("You lose!"));
-            player2->Write(ByteArray("You win!"));
+            player1->socket->Write(ByteArray("You lose!"));
+            player2->socket->Write(ByteArray("You win!"));
         }
     } else if (player1Correct && !player2Correct) {
         // player 1 wins
-        player1->Write(ByteArray("You win!"));
-        player2->Write(ByteArray("You lose!"));
+        player1->socket->Write(ByteArray("You win!"));
+        player2->socket->Write(ByteArray("You lose!"));
     } else if (player2Correct && !player1Correct) {
         // player 2 wins
-        player1->Write(ByteArray("You lose!"));
-        player2->Write(ByteArray("You win!"));
+        player1->socket->Write(ByteArray("You lose!"));
+        player2->socket->Write(ByteArray("You win!"));
     } else {
         // both lose
-        player1->Write(ByteArray("You lose!"));
-        player2->Write(ByteArray("You lose!"));
+        player1->socket->Write(ByteArray("You lose!"));
+        player2->socket->Write(ByteArray("You lose!"));
     }
 
-    player1->Close();
-    player2->Close();
+    player1->socket->Close();
+    player2->socket->Close();
 
 }
 
