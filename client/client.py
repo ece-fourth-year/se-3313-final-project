@@ -25,14 +25,34 @@ def main():
             break
         print("Received data: %s" % data)
 
-    s.send('1'.encode())
+        if data.decode() == 'Init':
+            break
+
+    print("Game started\nPlease select a number between 1 and 10")
+
+    while True:
+        try:
+            number = int(input())
+            if number < 1 or number > 10:
+                print("Please select a number between 1 and 10")
+                continue
+            break
+        except ValueError:
+            print("Please select a number between 1 and 10")
+
+    s.send(number.to_bytes(1, byteorder='big'))
 
     while True:
         data = s.recv(1024)
         if not data:
             break
         print("Received data: %s" % data)
+
+        if data.decode() == 'You Win!' or data.decode() == 'You Lose!':
+            break
         
+    print("Game over")    
+    s.close()
 
 
 if __name__ == '__main__':
