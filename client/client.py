@@ -1,20 +1,40 @@
-'''
-TODO: Alexander 
+import socket
+import sys
 
-main func 
+def main():
 
-    sleep_time = rng time to sleep between 0 1
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print("Socket created")
+    except socket.error as err:
+        print("Failed to create socket: %s" % err)
+        sys.exit()
 
-    create socket to server
+    ip = '127.0.0.1'
+    port = 2000
 
-    on data from server to start game
-        input = rng guess between 0 and 10
-        sleep(sleep_time)
+    print("Connecting to server...")
 
-        send guess to server
+    s.connect((ip, port))
 
-        on data from server for result
+    print("Waiting for game to start...")
 
-            close connection
+    while True:
+        data = s.recv(1024)
+        if not data:
+            break
+        print("Received data: %s" % data)
 
-'''
+    s.send('1'.encode())
+
+    while True:
+        data = s.recv(1024)
+        if not data:
+            break
+        print("Received data: %s" % data)
+        
+
+
+if name == '__main__':
+    main()
+    
