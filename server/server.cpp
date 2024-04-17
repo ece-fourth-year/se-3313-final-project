@@ -35,7 +35,7 @@ struct GameSession {
 };
 
 void threadSession(shared_ptr<GameSession> gameSession);
-void clientHandlerThread(shared_ptr<GameSession> gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
+void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> clientSocket, int *answer, bool *clientGuessedCorrectly, int *portFirst);
 void timerThread(shared_ptr<GameSession> gameSession);
 
 /*
@@ -122,13 +122,13 @@ void timerThread(shared_ptr<GameSession> gameSession) {
         timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
     }
 
-    gameSession->player1->Close();
+    gameSession->player1->socket->Close();
 }
 
 void threadSession(shared_ptr<GameSession> gameSession) {
 
-    shared_ptr<Socket> player1 = gameSession->player1;
-    shared_ptr<Socket> player2 = gameSession->player2;
+    shared_ptr<Socket> player1 = gameSession->player1->socket;
+    shared_ptr<Socket> player2 = gameSession->player2->socket;
 
     // start game message  
     string initGameMsg = "Init";
@@ -198,11 +198,13 @@ clientHandlerThread func (gameSem, client, answer, clientGuessedCorrectly, portF
 }
 */
 
-void clientHandlerThread(Semaphore *gameSem, shared_ptr<Socket> clientSocket, int *answer, bool *clientGuessedCorrectly, int *portFirst) {
+void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst) {
 
     // on data from client
 
     ByteArray buffer;
+
+    shared_ptr<Socket> clientSocket = client->socket;
 
     int clientGuess;
 
