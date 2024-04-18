@@ -84,20 +84,14 @@ timerThread func (gameSession) {
 
 void timerThread(shared_ptr<GameSession> gameSession, bool *player1Joined) {
     try{
-        shared_ptr<Client> player1 = gameSession->player1;
-        shared_ptr<Client> player2 = gameSession->player2;
-        cout << "[Timer Thread] - Player 1 status: " << boolalpha << (player1 != nullptr) << ", address: " << &gameSession->player1 << endl;
-        cout << "[Timer Thread] - Player 2 status: " << boolalpha << (player1 != nullptr) << ", address: " << &gameSession->player2 << endl;
         int passedTime = 0;
         auto start = chrono::high_resolution_clock::now();
 
         int timeElapsed = 0;
 
         while (timeElapsed < 10) {
-            // bool player2Joined = gameSession->player2 != nullptr;
-            // cout << "Player Two has joined: " << boolalpha << player2Joined << endl;
             if (gameSession->hasJoined) {
-                break;
+                return;
             }
             auto end = chrono::high_resolution_clock::now();
             timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
@@ -193,10 +187,13 @@ void threadSession(shared_ptr<GameSession> gameSession) {
     player2->socket->Write(ByteArray(initGameMsg));
 
     int answer = rand() % 10 + 1;
+
+    cout << "[Server] - Answer: " << answer << endl;
+
     bool player1Correct = false;
     bool player2Correct = false;
     int portFirst = -1;
-    Semaphore gameSem = Semaphore("gameSem", 0, true);
+    Semaphore gameSem = Semaphore("gameSem", 1, true);
 
     thread player1Thread(clientHandlerThread, &gameSem, player1, &answer, &player1Correct, &portFirst);
     thread client2Thread(clientHandlerThread, &gameSem, player2, &answer, &player2Correct, &portFirst);
@@ -268,13 +265,12 @@ void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *ans
 
     int clientGuess;
 
-    // Wait for a message from the client
-    while (clientSocket->Read(buffer) == 0)
-    {
-        sleep(1);
-    }
+    clientSocket->Read(buffer);
 
-    gameSem->Wait();
+    //print buffer
+    cout << "[Client Handler Thread] - Buffer: " << buffer.ToString() << endl;
+
+    gameSem->Wait(); 
 
     clientGuess = stoi(buffer.ToString());
 

@@ -44,7 +44,10 @@ def main():
         except ValueError:
             print("Please select a number between 1 and 10")
 
-    s.send(number.to_bytes(1, byteorder='big'))
+    print("Sending number to server...")
+    msg = str(number).encode()
+    s.send(msg)
+    print("Number sent")
 
     while True:
         data = s.recv(1024)
