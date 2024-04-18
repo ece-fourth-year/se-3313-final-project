@@ -3,8 +3,10 @@
 #include <thread>
 #include "../include/socketserver.h"
 #include "../include/Semaphore.h"
+#include "../include/socket.h"
 #include <string.h>
 #include <chrono>
+#include <memory>
 
 /*
 struct {
@@ -79,54 +81,77 @@ timerThread func (gameSession) {
     
 } */
 
-int main(void) {
+void timerThread(shared_ptr<GameSession> gameSession) {
+    try{
+        cout << "Why tf am I here" << endl;
 
+        auto start = chrono::high_resolution_clock::now();
+
+        int timeElapsed = 0;
+
+        while (timeElapsed < 60) {
+            if (gameSession->player2 != nullptr) {
+                return;
+            }
+            auto end = chrono::high_resolution_clock::now();
+            timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
+            cout << "Time Elapsed: " << timeElapsed << endl; // Debugging
+        }
+        cout << "Closing Client 1 Socket" << endl;
+        gameSession->player1->socket->Close();
+    } catch (exception e) {
+        cerr << "Error in timerThread: " << e.what() << endl;
+    }
+}
+
+int main(void) {
     vector<thread> threadSessions;
     bool timerStarted = false;
 
+    cout << "Starting Server Socket at 2000" << endl;
     SocketServer server = SocketServer(2000);
+    // cout << server.GetFD() << endl;
 
     while (1) {
-
+        cout << "Top of the loop" << endl;
         auto newGameSession = make_shared<GameSession>();
+        cout << "Waiting on Connection from Client" << endl;
         Socket clientSocket(server.Accept());
+        cout << "Connection Established" << endl;
         thread timerTh;
 
-        if (!timerStarted) {
-            newGameSession->player1->socket = make_shared<Socket>(clientSocket);
-            timerTh = thread(timerThread, newGameSession); // Fix: Pass the address of the timerThread function
-            timerStarted = true;
-        } else {
-            newGameSession->player2->socket = make_shared<Socket>(clientSocket);
-            timerTh.join();
-            timerStarted = false;
-            threadSessions.push_back(thread(threadSession, newGameSession));
+        try {
+            cout << "timerStarted: " << boolalpha << timerStarted << endl;
+            if (!timerStarted) { // Player 1 Enters the lobby
+                newGameSession->player1 = make_shared<Client>();
+                newGameSession->player1->socket = make_shared<Socket>(clientSocket);
+                timerTh = thread(timerThread, newGameSession); // Fix: Pass the address of the timerThread function
+                cout << "here" << endl;
+                timerStarted = true;
+                cout << "timerStarted: " << boolalpha << timerStarted << endl;
+            } else { // Player 2 enters the lobby
+                newGameSession->player2 = make_shared<Client>();
+                newGameSession->player2->socket = make_shared<Socket>(clientSocket);
+                if (timerTh.joinable()) {
+                    cout << "Ending thread" << endl;
+                    timerTh.join();
+                }
+                timerStarted = false;
+                threadSessions.push_back(thread(threadSession, newGameSession));
+            }
+        } catch (exception e) {
+            cout << "Error: " << e.what() << endl;
+            return 1;
         }
-
-    
+        cout << "Restarting Loop" << endl;
     }
-
+    return 0;
 }
 
-void timerThread(shared_ptr<GameSession> gameSession) {
 
-    auto start = chrono::high_resolution_clock::now();
-
-    int timeElapsed = 0;
-
-    while (timeElapsed < 60) {
-        if (gameSession->player2 != nullptr) {
-            return;
-        }
-        auto end = chrono::high_resolution_clock::now();
-        timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
-    }
-
-    gameSession->player1->socket->Close();
-}
 
 void threadSession(shared_ptr<GameSession> gameSession) {
-
+    cout << "Do we even go here" << endl;
     shared_ptr<Client> player1 = gameSession->player1;
     shared_ptr<Client> player2 = gameSession->player2;
 

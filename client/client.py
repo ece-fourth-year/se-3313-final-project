@@ -18,6 +18,8 @@ def main():
     s.connect((ip, port))
 
     print("Waiting for game to start...")
+    # s_ip, s_port = s.getsockname()
+    # print(f"IP: {s_ip}, Port: {s_port}")
 
     while True:
         data = s.recv(1024)

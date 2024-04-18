@@ -1,0 +1,6 @@
+1. Possible that when we enter the timerThread and timerStarted = true;
+    timerStarted = true; // Only enters the else statement
+    
+    When the TimerThread ends, we close the client connection but we have no way of setting back timerStarted = false;
+
+2. 
