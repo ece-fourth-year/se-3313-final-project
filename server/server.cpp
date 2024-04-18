@@ -38,7 +38,7 @@ struct GameSession {
 
 void threadSession(shared_ptr<GameSession> gameSession);
 void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
-void timerThread(shared_ptr<GameSession> gameSession);
+void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted);
 
 /*
 main func {
@@ -81,15 +81,14 @@ timerThread func (gameSession) {
     
 } */
 
-void timerThread(shared_ptr<GameSession> gameSession) {
+void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted) {
     try{
         cout << "Why tf am I here" << endl;
-
         auto start = chrono::high_resolution_clock::now();
 
         int timeElapsed = 0;
 
-        while (timeElapsed < 60) {
+        while (timeElapsed < 10) {
             if (gameSession->player2 != nullptr) {
                 return;
             }
@@ -99,6 +98,7 @@ void timerThread(shared_ptr<GameSession> gameSession) {
         }
         cout << "Closing Client 1 Socket" << endl;
         gameSession->player1->socket->Close();
+        *timerStarted = false;
     } catch (exception e) {
         cerr << "Error in timerThread: " << e.what() << endl;
     }
@@ -125,19 +125,22 @@ int main(void) {
             if (!timerStarted) { // Player 1 Enters the lobby
                 newGameSession->player1 = make_shared<Client>();
                 newGameSession->player1->socket = make_shared<Socket>(clientSocket);
-                timerTh = thread(timerThread, newGameSession); // Fix: Pass the address of the timerThread function
+                timerTh = thread(timerThread, newGameSession, &timerStarted); // Fix: Pass the address of the timerThread function
+                timerTh.join();
                 cout << "here" << endl;
                 timerStarted = true;
                 cout << "timerStarted: " << boolalpha << timerStarted << endl;
             } else { // Player 2 enters the lobby
                 newGameSession->player2 = make_shared<Client>();
                 newGameSession->player2->socket = make_shared<Socket>(clientSocket);
+                cout << "Holy shit we found player 2" << endl;
                 if (timerTh.joinable()) {
                     cout << "Ending thread" << endl;
                     timerTh.join();
                 }
                 timerStarted = false;
                 threadSessions.push_back(thread(threadSession, newGameSession));
+                cout << "Thread Session Size: " << threadSessions.size() << endl;
             }
         } catch (exception e) {
             cout << "Error: " << e.what() << endl;
@@ -179,23 +182,28 @@ void threadSession(shared_ptr<GameSession> gameSession) {
             // player 1 wins
             player1->socket->Write(ByteArray("You win!"));
             player2->socket->Write(ByteArray("You lose!"));
+            cout << "Player 1 wins" << endl;
         } else {
             // player 2 wins
             player1->socket->Write(ByteArray("You lose!"));
             player2->socket->Write(ByteArray("You win!"));
+            cout << "Player 2 wins" << endl;
         }
     } else if (player1Correct && !player2Correct) {
         // player 1 wins
         player1->socket->Write(ByteArray("You win!"));
         player2->socket->Write(ByteArray("You lose!"));
+        cout << "Player 1 wins" << endl;
     } else if (player2Correct && !player1Correct) {
         // player 2 wins
         player1->socket->Write(ByteArray("You lose!"));
         player2->socket->Write(ByteArray("You win!"));
+        cout << "Player 2 wins" << endl;
     } else {
         // both lose
         player1->socket->Write(ByteArray("You lose!"));
         player2->socket->Write(ByteArray("You lose!"));
+        cout << "Both players lose" << endl;
     }
 
     player1->socket->Close();
