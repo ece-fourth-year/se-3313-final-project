@@ -83,24 +83,32 @@ timerThread func (gameSession) {
 
 void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted) {
     try{
-        cout << "Why tf am I here" << endl;
+        cout << "[Timer Thread] - I have entered Timer Thread" << endl;
+        int passedTime = 0;
         auto start = chrono::high_resolution_clock::now();
 
         int timeElapsed = 0;
 
         while (timeElapsed < 10) {
-            if (gameSession->player2 != nullptr) {
+            // bool player2Joined = gameSession->player2 != nullptr;
+            // cout << "Player Two has joined: " << boolalpha << player2Joined << endl;
+            if (gameSession->player2) {
                 return;
             }
             auto end = chrono::high_resolution_clock::now();
             timeElapsed = chrono::duration_cast<chrono::seconds>(end - start).count();
-            cout << "Time Elapsed: " << timeElapsed << endl; // Debugging
+            
+            // Debugging if statement
+            if (timeElapsed != passedTime) {
+                cout << "[Timer Thread] - Time Elapsed: " << timeElapsed << endl; // Debugging
+                passedTime = timeElapsed;
+            }
         }
-        cout << "Closing Client 1 Socket" << endl;
+        cout << "[Timer Thread] - Closing Client 1 Socket" << endl;
         gameSession->player1->socket->Close();
         *timerStarted = false;
     } catch (exception e) {
-        cerr << "Error in timerThread: " << e.what() << endl;
+        cerr << "[Timer Thread] - Error in timerThread: " << e.what() << endl;
     }
 }
 
@@ -108,45 +116,45 @@ int main(void) {
     vector<thread> threadSessions;
     bool timerStarted = false;
 
-    cout << "Starting Server Socket at 2000" << endl;
+    cout << "[Server] - Starting Server Socket at 2000" << endl;
     SocketServer server = SocketServer(2000);
     // cout << server.GetFD() << endl;
 
     while (1) {
-        cout << "Top of the loop" << endl;
+        cout << "[Server] - Top of the loop" << endl;
         auto newGameSession = make_shared<GameSession>();
-        cout << "Waiting on Connection from Client" << endl;
+        cout << "[Server] - Waiting on Connection from Client" << endl;
         Socket clientSocket(server.Accept());
-        cout << "Connection Established" << endl;
+        cout << "[Server] - Connection Established" << endl;
         thread timerTh;
 
         try {
-            cout << "timerStarted: " << boolalpha << timerStarted << endl;
+            cout << "[Server] - timerStarted: " << boolalpha << timerStarted << endl;
             if (!timerStarted) { // Player 1 Enters the lobby
                 newGameSession->player1 = make_shared<Client>();
                 newGameSession->player1->socket = make_shared<Socket>(clientSocket);
                 timerTh = thread(timerThread, newGameSession, &timerStarted); // Fix: Pass the address of the timerThread function
-                timerTh.join();
-                cout << "here" << endl;
+                timerTh.detach();
+                cout << "[Server] - here" << endl;
                 timerStarted = true;
-                cout << "timerStarted: " << boolalpha << timerStarted << endl;
+                cout << "[Server] - timerStarted: " << boolalpha << timerStarted << endl;
             } else { // Player 2 enters the lobby
                 newGameSession->player2 = make_shared<Client>();
                 newGameSession->player2->socket = make_shared<Socket>(clientSocket);
-                cout << "Holy shit we found player 2" << endl;
+                cout << "[Server] - Holy shit we found player 2" << endl;
                 if (timerTh.joinable()) {
-                    cout << "Ending thread" << endl;
+                    cout << "[Server] - Ending thread" << endl;
                     timerTh.join();
                 }
                 timerStarted = false;
                 threadSessions.push_back(thread(threadSession, newGameSession));
-                cout << "Thread Session Size: " << threadSessions.size() << endl;
+                cout << "[Server] - Thread Session Size: " << threadSessions.size() << endl;
             }
         } catch (exception e) {
-            cout << "Error: " << e.what() << endl;
+            cout << "[Server] - Error: " << e.what() << endl;
             return 1;
         }
-        cout << "Restarting Loop" << endl;
+        cout << "[Server] - Restarting Loop" << endl;
     }
     return 0;
 }
@@ -154,9 +162,11 @@ int main(void) {
 
 
 void threadSession(shared_ptr<GameSession> gameSession) {
-    cout << "Do we even go here" << endl;
+    cout << "[Thread Session] - We are into ThreadSession()" << endl;
     shared_ptr<Client> player1 = gameSession->player1;
     shared_ptr<Client> player2 = gameSession->player2;
+    cout << "[Thread Session] - Player 1 status: " << boolalpha << (player1 != nullptr) << endl;
+    cout << "[Thread Session] - Player 2 status: " << boolalpha << (player2 != nullptr) << endl;
 
     // start game message  
     string initGameMsg = "Init";
