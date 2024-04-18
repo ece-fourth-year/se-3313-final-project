@@ -51,11 +51,11 @@ def main():
 
     while True:
         data = s.recv(1024)
-        if not data:
-            break
-        print("Received data: %s" % data)
+        # if not data:
+        #     break
+        print("Game Message: %s" % data.decoode)
 
-        if data.decode() == 'You Win!' or data.decode() == 'You Lose!':
+        if data:
             break
         
     print("Game over")    
