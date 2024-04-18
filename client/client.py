@@ -24,7 +24,9 @@ def main():
     while True:
         data = s.recv(1024)
         if not data:
-            break
+            # Check if the received data is empty. If it is, the connection has been closed so terminate the program
+            print("Connection terminated")
+            sys.exit()
         print("Received data: %s" % data)
 
         if data.decode() == 'Init':
