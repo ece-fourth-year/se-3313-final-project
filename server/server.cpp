@@ -38,7 +38,7 @@ struct GameSession {
 
 void threadSession(shared_ptr<GameSession> gameSession);
 void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
-void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted);
+void timerThread(shared_ptr<GameSession> gameSession, bool *player1Joined);
 
 /*
 main func {
@@ -81,7 +81,7 @@ timerThread func (gameSession) {
     
 } */
 
-void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted) {
+void timerThread(shared_ptr<GameSession> gameSession, bool *player1Joined) {
     try{
         cout << "[Timer Thread] - I have entered Timer Thread" << endl;
         int passedTime = 0;
@@ -106,7 +106,7 @@ void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted) {
         }
         cout << "[Timer Thread] - Closing Client 1 Socket" << endl;
         gameSession->player1->socket->Close();
-        *timerStarted = false;
+        *player1Joined = false;
     } catch (exception e) {
         cerr << "[Timer Thread] - Error in timerThread: " << e.what() << endl;
     }
@@ -114,7 +114,9 @@ void timerThread(shared_ptr<GameSession> gameSession, bool *timerStarted) {
 
 int main(void) {
     vector<thread> threadSessions;
-    bool timerStarted = false;
+    shared_ptr<Socket> waiting_client;
+    Socket *clientSocket;
+    bool player1Joined = false;
 
     cout << "[Server] - Starting Server Socket at 2000" << endl;
     SocketServer server = SocketServer(2000);
@@ -124,29 +126,34 @@ int main(void) {
         cout << "[Server] - Top of the loop" << endl;
         auto newGameSession = make_shared<GameSession>();
         cout << "[Server] - Waiting on Connection from Client" << endl;
-        Socket clientSocket(server.Accept());
+        clientSocket = new Socket(server.Accept());
+        if (waiting_client == nullptr) {
+            cout << "[Server] - Player 1 has joined" << endl;
+            waiting_client = make_shared<Socket>(*clientSocket);
+        }
         cout << "[Server] - Connection Established" << endl;
         thread timerTh;
 
         try {
-            cout << "[Server] - timerStarted: " << boolalpha << timerStarted << endl;
-            if (!timerStarted) { // Player 1 Enters the lobby
-                newGameSession->player1 = make_shared<Client>();
-                newGameSession->player1->socket = make_shared<Socket>(clientSocket);
-                timerTh = thread(timerThread, newGameSession, &timerStarted); // Fix: Pass the address of the timerThread function
+            if (!player1Joined) { // Player 1 Enters the lobby
+                cout << "[Server] - Player 1 has joined, Starting TimerThread" << endl;
+                // newGameSession->player1 = make_shared<Client>();
+                // newGameSession->player1->socket = make_shared<Socket>(clientSocket);
+                timerTh = thread(timerThread, newGameSession, &player1Joined); // Fix: Pass the address of the timerThread function
                 timerTh.detach();
-                cout << "[Server] - here" << endl;
-                timerStarted = true;
-                cout << "[Server] - timerStarted: " << boolalpha << timerStarted << endl;
+                player1Joined = true;
+                cout << "[Server] - Player1Joined: " << boolalpha << player1Joined << endl;
             } else { // Player 2 enters the lobby
+                newGameSession->player1 = make_shared<Client>();
+                newGameSession->player1->socket = make_shared<Socket>(waiting_client);
                 newGameSession->player2 = make_shared<Client>();
-                newGameSession->player2->socket = make_shared<Socket>(clientSocket);
-                cout << "[Server] - Holy shit we found player 2" << endl;
+                newGameSession->player2->socket = make_shared<Socket>(*clientSocket);
+                cout << "[Server] - Player 2 has been found" << endl;
                 if (timerTh.joinable()) {
                     cout << "[Server] - Ending thread" << endl;
                     timerTh.join();
                 }
-                timerStarted = false;
+                player1Joined = false;
                 threadSessions.push_back(thread(threadSession, newGameSession));
                 cout << "[Server] - Thread Session Size: " << threadSessions.size() << endl;
             }
