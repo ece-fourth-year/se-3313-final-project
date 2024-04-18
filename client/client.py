@@ -53,7 +53,7 @@ def main():
         data = s.recv(1024)
         # if not data:
         #     break
-        print("Game Message: %s" % data.decoode)
+        print("Game Message: %s" % data.decode())
 
         if data:
             break
