@@ -7,6 +7,11 @@
 #include <string.h>
 #include <chrono>
 #include <memory>
+#include <algorithm>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+#include <signal.h>
 
 using namespace std;
 using namespace Sync;
@@ -24,6 +29,7 @@ struct GameSession {
 void threadSession(shared_ptr<GameSession> gameSession);
 void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
 void timerThread(shared_ptr<GameSession> gameSession, bool *player1Joined);
+void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, shared_ptr<SocketServer> server);
 
 /**
  * Timer Thread() - This function is responsible for timing the player's connection to the server.
@@ -126,11 +132,11 @@ void threadSession(shared_ptr<GameSession> gameSession) {
 
 /**
  * Client Handler Thread() - This function is responsible for handling each Players's guess and checking if the player guessed correctly.
- * @params Semaphore *gameSem - Semaphore object to lock the critical section
- * @params shared_ptr<Client> client - Client object to handle the client's guess
- * @params int *answer - The correct answer to the game
- * @params bool *clientGuessedCorrectly - A boolean to check if the client guessed correctly
- * @params int *portFirst - The port number of the client who guessed first
+ * @param Semaphore *gameSem - Semaphore object to lock the critical section
+ * @param shared_ptr<Client> client - Client object to handle the client's guess
+ * @param int *answer - The correct answer to the game
+ * @param bool *clientGuessedCorrectly - A boolean to check if the client guessed correctly
+ * @param int *portFirst - The port number of the client who guessed first
 */
 void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst) {
     // on data from client
@@ -165,22 +171,26 @@ void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *ans
  * Main() - This function is responsible for starting the server and handling the game sessions between two players.
  * @returns 0 - If the server runs successfully
 */
-int main(void) {
+// int main(void) {
+void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, shared_ptr<SocketServer> server) {
+    // SocketServer server(2000);
     vector<thread> threadSessions;
     shared_ptr<Socket> waiting_client;
     Socket *clientSocket;
+    // vector<shared_ptr<GameSession>> gameSessions;
     shared_ptr<GameSession> gameSession;
     bool player1Joined = false;
 
     cout << "[Server] - Starting Server Socket at 2000" << endl;
-    SocketServer server = SocketServer(2000);
+    
 
-    while (1) {
+    while (!*shutdown) {
         cout << "[Server] - Waiting on Connection from Client" << endl;
-        clientSocket = new Socket(server.Accept());
+        clientSocket = new Socket(server->Accept());
         cout << "[Server] - Connection Established" << endl;
         if (waiting_client == nullptr) {
-            gameSession = make_shared<GameSession>();
+            // gameSession = make_shared<GameSession>();
+            gameSessions.push_back(make_shared<GameSession>());
             cout << "[Server] - Player 1 has joined" << endl;
             waiting_client = make_shared<Socket>(*clientSocket);
         }
@@ -189,11 +199,13 @@ int main(void) {
         try {
             if (!player1Joined) { // Player 1 Enters the lobby
                 cout << "[Server] - Player 1 has joined, Starting TimerThread" << endl;
+                gameSession = gameSessions.back();
                 timerTh = thread(timerThread, gameSession, &player1Joined);
                 timerTh.detach();
                 player1Joined = true;
                 cout << "[Server] - Player1Joined: " << boolalpha << player1Joined << endl;
             } else { // Player 2 enters the lobby
+                gameSession = gameSessions.back();
                 gameSession->hasJoined = true;
                 gameSession->player1 = make_shared<Client>();
                 gameSession->player1->socket = waiting_client;
@@ -211,8 +223,59 @@ int main(void) {
             }
         } catch (exception e) {
             cout << "[Server] - Error: " << e.what() << endl;
-            return 1;
+            return;
+        }
+
+        for (auto &session : gameSessions) {
+            if (session->hasJoined) {
+                gameSessions.erase(remove(gameSessions.begin(), gameSessions.end(), session), gameSessions.end());
+            }
         }
     }
+}
+
+void shutdownServer(vector<shared_ptr<GameSession>> gameSessions) {
+    for (auto &session : gameSessions) {
+        if (session->player1->socket) {
+            session->player1->socket->Close();
+        }
+        if (session->player2->socket) {
+            session->player2->socket->Close();
+        }
+    }
+}
+
+int main(void) {
+
+    vector<shared_ptr<GameSession>> gameSessions;
+    shared_ptr<SocketServer> server = make_shared<SocketServer>(2000);
+
+    pid_t cpid = fork();
+    bool shutdown = false;
+
+    if (cpid == 0)
+    {
+        // Child process waits for input to shutdown the server
+        std::cin.get();
+        // shutdown = true;
+        server->Shutdown();
+        shutdownServer(gameSessions);
+        cout << "parent" << endl;
+        
+        kill(0, SIGTERM);
+    }
+    else if (cpid > 0)
+    {
+        // Parent process will continue to run the server
+        // Need a thread to perform server operations
+        runServer(&shutdown, gameSessions, server);
+
+        // This will wait for input to shutdown the server
+        FlexWait cinWaiter(1, stdin);
+        cinWaiter.Wait();
+
+        kill(0, SIGTERM);
+    }
+
     return 0;
 }

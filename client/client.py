@@ -18,16 +18,14 @@ def main():
     s.connect((ip, port))
 
     print("Waiting for game to start...")
-    # s_ip, s_port = s.getsockname()
-    # print(f"IP: {s_ip}, Port: {s_port}")
 
     while True:
         data = s.recv(1024)
         if not data:
             # Check if the received data is empty. If it is, the connection has been closed so terminate the program
             print("Connection terminated")
+            s.close()
             sys.exit()
-        print("Received data: %s" % data)
 
         if data.decode() == 'Init':
             break
@@ -36,6 +34,12 @@ def main():
 
     while True:
         try:
+            # this will try to read bytes without blocking and also without removing them from buffer (peek only)
+            # data = s.recv(16, socket.MSG_DONTWAIT | socket.MSG_PEEK)
+            # if not data:
+            #     print("Connection terminated")
+            #     sys.exit()
+
             number = int(input())
             if number < 1 or number > 10:
                 print("Please select a number between 1 and 10")
