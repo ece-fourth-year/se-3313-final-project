@@ -29,7 +29,7 @@ struct GameSession {
 void threadSession(shared_ptr<GameSession> gameSession);
 void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *answer, bool *clientGuessedCorrectly, int *portFirst);
 void timerThread(shared_ptr<GameSession> gameSession, bool *player1Joined);
-void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, shared_ptr<SocketServer> server, vector<shared_ptr<thread>> threadSessions, vector<shared_ptr<thread>> timerThreads);
+void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, shared_ptr<SocketServer> server, vector<shared_ptr<thread>> threadSessions);
 void shutdownServer(vector<shared_ptr<GameSession>> gameSessions, vector<shared_ptr<thread>> threadSessions, vector<shared_ptr<thread>> timerThreads);
 /**
  * Timer Thread() - This function is responsible for timing the player's connection to the server.
@@ -60,6 +60,7 @@ void timerThread(shared_ptr<GameSession> gameSession, bool *player1Joined) {
         cout << "[Timer Thread] - Closing Client 1 Socket" << endl;
         *player1Joined = false;
         gameSession->player1->socket->Close();
+        return;
     } catch (exception e) {
         cerr << "[Timer Thread] - Error in timerThread: " << e.what() << endl;
     }
@@ -128,6 +129,8 @@ void threadSession(shared_ptr<GameSession> gameSession) {
     player1->socket->Close();
     player2->socket->Close();
 
+    gameSession->hasJoined = false;
+
 }
 
 /**
@@ -172,10 +175,8 @@ void clientHandlerThread(Semaphore *gameSem, shared_ptr<Client> client, int *ans
  * @returns 0 - If the server runs successfully
 */
 // int main(void) {
-void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, shared_ptr<SocketServer> server, vector<shared_ptr<thread>> threadSessions, vector<shared_ptr<thread>> timerThreads) {
-    // SocketServer server(2000);
+void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, shared_ptr<SocketServer> server, vector<shared_ptr<thread>> threadSessions) {
     // vector<shared_ptr<thread>> threadSessions;
-    // vector<thread> timerThreads;
     shared_ptr<Socket> waiting_client;
     Socket *clientSocket;
     // vector<shared_ptr<GameSession>> gameSessions;
@@ -195,15 +196,14 @@ void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, sha
             cout << "[Server] - Player 1 has joined" << endl;
             waiting_client = make_shared<Socket>(*clientSocket);
         }
-        // thread timerTh;
+        thread timerTh;
 
         try {
             if (!player1Joined) { // Player 1 Enters the lobby
                 cout << "[Server] - Player 1 has joined, Starting TimerThread" << endl;
                 gameSession = gameSessions.back();
-                // timerTh = thread(timerThread, gameSession, &player1Joined);
-                timerThreads.push_back(make_shared<thread>(timerThread, gameSession, &player1Joined));
-                // timerTh.detach();
+                timerTh = thread(timerThread, gameSession, &player1Joined);
+                timerTh.detach();
                 player1Joined = true;
                 cout << "[Server] - Player1Joined: " << boolalpha << player1Joined << endl;
             } else { // Player 2 enters the lobby
@@ -218,10 +218,6 @@ void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, sha
                 //     cout << "[Server] - Ending thread" << endl;
                 //     timerTh.join();
                 // }
-                if (timerThreads.back()->joinable()) {
-                    cout << "[Server] - Ending thread" << endl;
-                    timerThreads.back()->join();
-                }
                 player1Joined = false;
                 threadSessions.push_back(make_shared<thread>(threadSession, gameSession));
                 cout << "[Server] - Thread Session Size: " << threadSessions.size() << endl;
@@ -232,24 +228,8 @@ void runServer(bool *shutdown, vector<shared_ptr<GameSession>> gameSessions, sha
             return;
         }
 
-        for (auto &session : gameSessions) {
-            if (session->hasJoined) {
-                gameSessions.erase(remove(gameSessions.begin(), gameSessions.end(), session), gameSessions.end());
-            }
-        }
-
-        for (auto &thread : threadSessions) {
-            if (thread->joinable()) {
-                thread->join();
-            }
-        }
-
-        for (auto &thread : timerThreads) {
-            if (thread->joinable()) {
-                thread->join();
-            }
-        }
     }
+
 }
 
 void shutdownServer(vector<shared_ptr<GameSession>> gameSessions, vector<shared_ptr<thread>> threadSessions, vector<shared_ptr<thread>> timerThreads) {
@@ -263,14 +243,14 @@ void shutdownServer(vector<shared_ptr<GameSession>> gameSessions, vector<shared_
     }
     for (auto &thread : threadSessions) {
         if (thread->joinable()) {
-            cout << "[Server] - Ending session thread" << endl;
+            cout << "[Shutdown] - Ending session thread" << endl;
             thread->join();
         }
     }
 
     for (auto &thread : timerThreads) {
         if (thread->joinable()) {
-            cout << "[Server] - Ending timer thread" << endl;
+            cout << "[Shutdown] - Ending timer thread" << endl;
             thread->join();
         }
     }
@@ -280,7 +260,6 @@ int main(void) {
 
     vector<shared_ptr<GameSession>> gameSessions;
     vector<shared_ptr<thread>> threadSessions;
-    vector<shared_ptr<thread>> timerThreads;
     shared_ptr<SocketServer> server = make_shared<SocketServer>(2000);
 
     pid_t cpid = fork();
@@ -291,8 +270,8 @@ int main(void) {
         // Child process waits for input to shutdown the server
         std::cin.get();
         // shutdown = true;
-        server->Shutdown();
-        shutdownServer(gameSessions, threadSessions, timerThreads);
+        // server->Shutdown();
+        // shutdownServer(gameSessions, threadSessions, timerThreads);
         cout << "parent" << endl;
         
         kill(0, SIGTERM);
@@ -301,7 +280,7 @@ int main(void) {
     {
         // Parent process will continue to run the server
         // Need a thread to perform server operations
-        runServer(&shutdown, gameSessions, server, threadSessions, timerThreads);
+        runServer(&shutdown, gameSessions, server, threadSessions);
 
         // This will wait for input to shutdown the server
         FlexWait cinWaiter(1, stdin);
