@@ -26,7 +26,7 @@ python client/client.py
 
 To have a clean build do
 
-```
+```bash
 make clean
 make all
 ```
